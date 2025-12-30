@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photosynthesis Quiz</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f9fafc;
+    color: #222;
+    margin: 20px;
+  }
+  .start-screen, .end-screen {
+    text-align: center;
+    margin-top: 50px;
+    transition: opacity 0.7s ease;
+  }
+  .end-screen { display: none; opacity: 0; }
+  
+  .progress {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 15px;
+    display: none;
+  }
+  
+  #quiz-container {
+    position: relative;
+    max-width: 700px;
+    margin: 0 auto;
+    min-height: 400px; 
+  }
+  
+  .quiz-box {
+    position: absolute;
+    top: 0; left: 0; width: 100%;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.7s ease; /* Question Fade */
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    padding: 25px;
+    box-sizing: border-box;
+  }
+  
+  .quiz-box.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .question { font-weight: bold; margin-bottom: 12px; }
+  
+  /* Tightened vertical space for answers */
+  label { 
+    display: block; 
+    margin: 4px 0; /* Reduced from 10px to 4px */
+    cursor: pointer; 
+    line-height: 1.2;
+  }
+  
+  .tip, .feedback {
+    opacity: 0;
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    transition: opacity 0.7s ease; /* Tip/Feedback Fade */
+  }
+  
+  .tip { background: #fff5d6; border-left: 4px solid #ffc107; }
+  .tip.visible, .feedback.visible { opacity: 1; }
+
+  .feedback.correct { background: rgba(46,125,50,0.1); border-left: 4px solid #2ecc71; color: #2e7d32; }
+  .feedback.incorrect { background: rgba(231,76,60,0.1); border-left: 4px solid #e74c3c; color: #c0392b; }
+
+  button {
+    margin-top: 15px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  .nextBtn { background: #28a745; display: none; }
+</style>
+</head>
+<body>
+
+<div class="start-screen" id="start-screen">
+  <h1>Photosynthesis Quiz</h1>
+  <p>Welcome! Click Start Quiz to begin.</p>
+  <button id="startBtn">Start Quiz</button>
+</div>
+
+<div class="progress" id="progress-bar"></div>
+<div id="quiz-container"></div>
+
+<div class="end-screen" id="end-screen">
+  <h2>Quiz Complete! 🎉</h2>
+  <p id="final-score-display" style="font-size: 22px; font-weight: bold;"></p>
+  <button id="restartBtn">Restart Quiz</button>
+</div>
+
+<script>
+let score = 0;
+let currentTimer = null;
+const tip_delay_ms = 35000;
+
+const quizQuestions = [
+{
+  question: "Which statement about light is true?",
+  tip: "Recall what an absorption spectrum actually measures.",
+  correct: "b",
+  answers: {
+    a: "An absorption spectrum is a plot of biological effectiveness versus wavelength.",
+    b: "An absorption spectrum may be a good means of identifying a pigment.",
+    c: "Light need not be absorbed to produce a biological effect.",
+    d: "A given kind of molecule can occupy any energy level.",
+    e: "A pigment loses energy as it absorbs a photon."
+  },
+  feedbacks: {
+    a: "Common misconception — biological effectiveness is shown by an action spectrum, not absorption.",
+    b: "Correct — pigments absorb specific wavelengths, producing characteristic absorption spectra.",
+    c: "Light must be absorbed to have an effect; reflected or transmitted light does nothing biologically.",
+    d: "Energy levels are discrete; molecular structure limits which energies can be absorbed.",
+    e: "Absorbing a photon raises energy; loss occurs when energy is released."
+  }
+},
+
+{
+  question: "When a photon interacts with molecules such as those within chloroplasts, the photons may:",
+  tip: "Think about all possible interactions between light and matter.",
+  correct: "e",
+  answers: {
+    a: "Bounce off the molecules, having no effect.",
+    b: "Pass through the molecules, having no effect.",
+    c: "Be absorbed by the molecules.",
+    d: "Both a and c.",
+    e: "All answers are correct."
+  },
+  feedbacks: {
+    a: "Reflection is possible but not the only outcome.",
+    b: "Transmission is possible but photons may also interact differently.",
+    c: "Absorption is possible, but not guaranteed.",
+    d: "Partial but incomplete — transmission also occurs.",
+    e: "Correct — photons can reflect, pass through, or be absorbed."
+  }
+},
+
+{
+  question: "Compared to long-wavelength photons, short-wavelength photons have:",
+  tip: "Remember the inverse relationship between wavelength and energy.",
+  correct: "b",
+  answers: {
+    a: "An insignificant amount of energy.",
+    b: "More energy.",
+    c: "Energy not available to plant cells.",
+    d: "A ladder of energy.",
+    e: "An equal amount of energy."
+  },
+  feedbacks: {
+    a: "Short-wavelength photons carry more energy, not less.",
+    b: "Correct — energy increases as wavelength decreases.",
+    c: "Plants can absorb short-wavelength visible light.",
+    d: "Energy levels are discrete but not a 'ladder'.",
+    e: "Photon energy varies with wavelength; it is not equal."
+  }
+},
+
+{
+  question: "The wavelength of X rays is shorter than that of infrared rays. Which is true?",
+  tip: "Recall the relationship between wavelength and photon energy.",
+  correct: "a",
+  answers: {
+    a: "X rays have more energy per photon than infrared rays have.",
+    b: "X rays have a smaller value for Planck’s constant than infrared waves have.",
+    c: "X rays have a different absorption spectrum than infrared waves have.",
+    d: "X rays and infrared waves have the same frequency.",
+    e: "Infrared waves are in the ground state, whereas X rays are in the excited state."
+  },
+  feedbacks: {
+    a: "Correct — energy is inversely proportional to wavelength.",
+    b: "Planck’s constant is universal; it doesn’t change.",
+    c: "Absorption spectra depend on matter, not just wavelength.",
+    d: "Frequency differs; shorter wavelength means higher frequency.",
+    e: "Ground/excited states apply to atoms, not entire wavelengths."
+  }
+},
+
+{
+  question: "A graph plotting the rate at which CO₂ is converted to glucose versus wavelength of light is called:",
+  tip: "Focus on biological activity, not pigment absorption.",
+  correct: "e",
+  answers: {
+    a: "A Planck equation.",
+    b: "An absorption spectrum.",
+    c: "Enzyme kinetics.",
+    d: "An electromagnetic spectrum.",
+    e: "An action spectrum."
+  },
+  feedbacks: {
+    a: "Planck’s equation relates energy to wavelength, not photosynthesis.",
+    b: "Absorption spectrum shows pigments absorb light, not rate of photosynthesis.",
+    c: "Enzyme kinetics is unrelated to light wavelength.",
+    d: "Electromagnetic spectrum shows wavelengths, not biological response.",
+    e: "Correct — action spectrum shows photosynthetic effectiveness."
+  }
+},
+
+{
+  question: "How do red and blue light differ from one another?",
+  tip: "Consider wavelength differences and energy.",
+  correct: "c",
+  answers: {
+    a: "They differ in intensity.",
+    b: "They have a different number of photons in each quantum.",
+    c: "Their wavelengths are different.",
+    d: "They differ in duration.",
+    e: "Red is radiant, whereas blue is electromagnetic."
+  },
+  feedbacks: {
+    a: "Intensity is independent of colour; red and blue may have same intensity.",
+    b: "Photon number is unrelated to colour; each photon energy varies by wavelength.",
+    c: "Correct — red and blue light have different wavelengths.",
+    d: "Duration (time) is not the key difference here.",
+    e: "All visible light is electromagnetic; red and blue are both EM waves."
+  }
+},
+
+{
+  question: "A molecule with an absorption spectrum showing maximum absorption in visible wavelengths is:",
+  tip: "Think about what absorbs visible light in plants.",
+  correct: "e",
+  answers: {
+    a: "A reducing agent.",
+    b: "A quantum.",
+    c: "A photon.",
+    d: "Electromagnetic radiation.",
+    e: "A pigment."
+  },
+  feedbacks: {
+    a: "Reducing agent describes chemical property, not light absorption.",
+    b: "Quantum is a single photon, not a molecule.",
+    c: "Photon is light, not absorbing molecule.",
+    d: "Electromagnetic radiation is what is absorbed, not the absorber.",
+    e: "Correct — pigments absorb visible light."
+  }
+},
+
+{
+  question: "When white light strikes a blue pigment, blue light is:",
+  tip: "Consider which wavelengths are absorbed versus reflected.",
+  correct: "d",
+  answers: {
+    a: "Reduced.",
+    b: "Absorbed.",
+    c: "Converted to chemical energy.",
+    d: "Scattered or transmitted.",
+    e: "Used to synthesize ATP."
+  },
+  feedbacks: {
+    a: "Reflection is not reduction.",
+    b: "Blue is mostly reflected, not absorbed by blue pigment.",
+    c: "Energy conversion occurs only for absorbed wavelengths.",
+    d: "Correct — blue light is reflected or transmitted by a blue pigment.",
+    e: "ATP synthesis uses absorbed light, not reflected light."
+  }
+},
+
+{
+  question: "Plants are green because:",
+  tip: "Focus on chlorophyll absorption and reflection.",
+  correct: "a",
+  answers: {
+    a: "Chlorophylls absorb blue and orange-red light and reflect green light.",
+    b: "Chloroplasts transmit green light.",
+    c: "Energized chlorophyll a emits green light.",
+    d: "Plants do not possess green pigment.",
+    e: "Chlorophylls absorb green light."
+  },
+  feedbacks: {
+    a: "Correct — green light is reflected, giving leaves their colour.",
+    b: "Transmission occurs but reflection is the key factor.",
+    c: "Emission is minimal; reflection dominates observed colour.",
+    d: "Plants do contain green pigments (chlorophyll).",
+    e: "Chlorophyll absorbs little green light, mostly reflects it."
+  }
+},
+
+{
+  question: "When a photon is absorbed by a molecule, the photon:",
+  tip: "Think about energy transfer to the molecule.",
+  correct: "b",
+  answers: {
+    a: "Loses its ability to generate any energy.",
+    b: "Raises the molecule from a ground state of low energy to an excited state.",
+    c: "Affects the molecule in ways not clearly understood.",
+    d: "Causes a change in the velocity of the wavelengths.",
+    e: "None of the above."
+  },
+  feedbacks: {
+    a: "Photon energy is transferred, not lost entirely.",
+    b: "Correct — absorption excites the molecule to a higher energy state.",
+    c: "Energy transfer mechanisms are understood.",
+    d: "Velocity of the photon doesn’t change in this context.",
+    e: "Option b is correct."
+  }
+},
+
+{
+  question: "Why is the absorption spectrum of chlorophyll a not identical to the action spectrum of photosynthesis?",
+  tip: "Consider accessory pigments contribution.",
+  correct: "a",
+  answers: {
+    a: "Accessory pigments contribute energy to drive photosynthesis.",
+    b: "Chlorophyll a absorbs both red and blue light.",
+    c: "Chlorophyll a reflects green light.",
+    d: "Different wavelengths of light have different energies.",
+    e: "Chlorophyll a can be activated by absorbing a photon of light."
+  },
+  feedbacks: {
+    a: "Correct — accessory pigments expand the range of light driving photosynthesis.",
+    b: "True but doesn’t explain the difference between absorption and action spectra.",
+    c: "Reflection explains colour, not the spectrum mismatch.",
+    d: "Energy differences exist, but accessory pigments explain action spectrum better.",
+    e: "Activation occurs, but the mismatch is due to accessory pigments."
+  }
+},
+
+{
+  question: "The photosynthetic pigment chlorophyll a absorbs:",
+  tip: "Focus on absorption peaks of chlorophyll a.",
+  correct: "b",
+  answers: {
+    a: "Infrared light.",
+    b: "Orange-red and blue light.",
+    c: "X rays.",
+    d: "Gamma rays.",
+    e: "White light."
+  },
+  feedbacks: {
+    a: "Infrared is mostly not absorbed by chlorophyll.",
+    b: "Correct — chlorophyll a absorbs red and blue light effectively.",
+    c: "X rays are not absorbed for photosynthesis.",
+    d: "Gamma rays are too energetic and not absorbed.",
+    e: "White light contains all colours; only red/blue are absorbed."
+  }
+},
+
+{
+  question: "Accessory pigments:",
+  tip: "Consider the role of carotenoids and chlorophyll b.",
+  correct: "d",
+  answers: {
+    a: "Play no role in photosynthesis.",
+    b: "Transfer energy from chlorophyll to the electron transport chain.",
+    c: "Absorb only the red wavelengths.",
+    d: "Allow plants to absorb visible light of intermediate wavelengths.",
+    e: "Transfer electrons to NADP."
+  },
+  feedbacks: {
+    a: "Accessory pigments are functional in light capture.",
+    b: "They transfer energy to chlorophyll, not directly to ETC.",
+    c: "They absorb blue and green, not only red.",
+    d: "Correct — expand absorption range beyond chlorophyll a.",
+    e: "Electron transfer occurs via photosystems, not directly from pigments."
+  }
+},
+
+{
+  question: "When a photon is absorbed by chlorophyll:",
+  tip: "Focus on molecular excitation.",
+  correct: "a",
+  answers: {
+    a: "The chlorophyll becomes 'excited' or energized.",
+    b: "A greater number of light wavelengths can be absorbed.",
+    c: "ATP is split into ADP, phosphate, and energy.",
+    d: "Hydrogen ions are released.",
+    e: "The chlorophyll molecules fluoresce."
+  },
+  feedbacks: {
+    a: "Correct — energy of photon excites the chlorophyll molecule.",
+    b: "Absorption spectrum is fixed; photons excite existing molecules.",
+    c: "ATP synthesis occurs later, not during photon absorption.",
+    d: "H+ are moved during ETC, not immediately on photon absorption.",
+    e: "Fluorescence is minor; excitation is main effect."
+  }
+},
+
+{
+  question: "The action spectrum of photosynthesis is similar to the absorption spectrum of chlorophylls:",
+  tip: "Compare biological response to pigment absorption.",
+  correct: "c",
+  answers: {
+    a: "Action spectrum; fluorescence spectrum",
+    b: "Absorption spectrum; action spectrum",
+    c: "Action spectrum; absorption spectrum",
+    d: "Absorption spectrum; fluorescence spectrum",
+    e: "None of the above"
+  },
+  feedbacks: {
+    a: "Fluorescence is different; does not measure photosynthesis.",
+    b: "Reverses cause and effect.",
+    c: "Correct — peaks correspond due to pigment absorption driving photosynthesis.",
+    d: "Incorrect comparison.",
+    e: "Option c is correct."
+  }
+},
+
+{
+  question: "Photosynthesis in green plants occurs only during the day. Respiration in plants occurs:",
+  tip: "Think about metabolic processes in all plant cells.",
+  correct: "d",
+  answers: {
+    a: "Only at night.",
+    b: "Only when there is enough ATP.",
+    c: "Only during the day.",
+    d: "All the time.",
+    e: "In the chloroplast after photosynthesis."
+  },
+  feedbacks: {
+    a: "Respiration occurs continuously, not just at night.",
+    b: "Respiration is not ATP-dependent.",
+    c: "Respiration occurs day and night.",
+    d: "Correct — plant cells respire constantly, using mitochondria.",
+    e: "Respiration occurs in mitochondria, not just chloroplasts."
+  }
+},
+
+{
+  question: "Mesophyll cells of a green leaf:",
+  tip: "Compare metabolism with animal cells.",
+  correct: "d",
+  answers: {
+    a: "Do not contain mitochondria.",
+    b: "Cannot carry out glycolysis.",
+    c: "Do not respire.",
+    d: "Have metabolic pathways similar to animal cells, except photosynthesis.",
+    e: "Resemble prokaryotes."
+  },
+  feedbacks: {
+    a: "Mitochondria are present.",
+    b: "Glycolysis occurs in cytosol.",
+    c: "Respiration occurs constantly.",
+    d: "Correct — plants have same basic pathways as animals plus photosynthesis.",
+    e: "Plant cells are eukaryotic, not prokaryotic."
+  }
+},
+
+{
+  question: "The main function of photosynthesis is the:",
+  tip: "Focus on energy conversion in plants.",
+  correct: "c",
+  answers: {
+    a: "Consumption of CO₂.",
+    b: "Production of ATP.",
+    c: "Conversion of light energy to chemical energy.",
+    d: "Production of starch.",
+    e: "Production of O₂."
+  },
+  feedbacks: {
+    a: "CO₂ uptake is a step, not the main function.",
+    b: "ATP is a temporary energy carrier.",
+    c: "Correct — photosynthesis stores energy from light in chemical bonds.",
+    d: "Starch is a storage product, not the main function.",
+    e: "O₂ is a by-product."
+  }
+}
+
+];
+
+function buildQuiz() {
+  const container = document.getElementById('quiz-container');
+  container.innerHTML = '';
+  quizQuestions.forEach((q, idx) => {
+    const box = document.createElement("div");
+    box.className = "quiz-box";
+    box.innerHTML = `
+      <div class="question">${idx+1}. ${q.question}</div>
+      ${Object.entries(q.answers).map(([key,val])=>`<label><input type="radio" name="q${idx}" value="${key}"> ${val}</label>`).join('')}
+      <div class="tip">${q.tip}</div>
+      <div class="feedback"></div>
+      <button class="submitBtn">Submit</button>
+      <button class="nextBtn">Next</button>
+    `;
+    container.appendChild(box);
+  });
+  setupEventListeners();
+}
+
+function startTipTimer(box) {
+  const tip = box.querySelector('.tip');
+  tip.classList.remove('visible');
+  currentTimer = setTimeout(() => tip.classList.add('visible'), tip_delay_ms);
+}
+
+function updateProgress(idx) {
+  document.getElementById('progress-bar').textContent = `Question ${idx + 1} of ${quizQuestions.length} | Score: ${score}`;
+}
+
+function setupEventListeners() {
+  document.querySelectorAll('.quiz-box').forEach((box, idx, all) => {
+    const submitBtn = box.querySelector('.submitBtn');
+    const nextBtn = box.querySelector('.nextBtn');
+    const feedback = box.querySelector('.feedback');
+    const q = quizQuestions[idx];
+
+    submitBtn.addEventListener('click', () => {
+      const selected = box.querySelector('input[type="radio"]:checked');
+      if (!selected) return alert('Please select an answer.');
+
+      clearTimeout(currentTimer);
+      box.querySelector('.tip').classList.remove('visible');
+      box.querySelectorAll('input').forEach(i => i.disabled = true);
+      submitBtn.disabled = true;
+
+      feedback.textContent = q.feedbacks[selected.value] || (selected.value === q.correct ? "Correct!" : "Incorrect.");
+      if (selected.value === q.correct) {
+        score++;
+        feedback.classList.add('correct');
+      } else {
+        feedback.classList.add('incorrect');
+      }
+
+      void feedback.offsetWidth; 
+      feedback.classList.add('visible');
+      updateProgress(idx);
+      nextBtn.style.display = 'inline-block';
+    });
+
+    nextBtn.addEventListener('click', () => {
+      box.style.opacity = 0; 
+      setTimeout(() => {
+        box.classList.remove('active');
+        const nextBox = all[idx + 1];
+        if (nextBox) {
+          nextBox.classList.add('active');
+          void nextBox.offsetWidth;
+          nextBox.style.opacity = 1; 
+          startTipTimer(nextBox);
+          updateProgress(idx + 1);
+        } else {
+          showEndScreen();
+        }
+      }, 700); 
+    });
+  });
+}
+
+function showEndScreen() {
+  const end = document.getElementById('end-screen');
+  document.getElementById('progress-bar').style.display = 'none';
+  document.getElementById('final-score-display').textContent = `Your final score: ${score} out of ${quizQuestions.length}`;
+  end.style.display = 'block';
+  setTimeout(() => end.style.opacity = 1, 50);
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  const start = document.getElementById('start-screen');
+  start.style.opacity = 0;
+  setTimeout(() => {
+    start.style.display = 'none';
+    document.getElementById('progress-bar').style.display = 'block';
+    buildQuiz();
+    const firstBox = document.querySelector('.quiz-box');
+    firstBox.classList.add('active');
+    void firstBox.offsetWidth;
+    firstBox.style.opacity = 1;
+    startTipTimer(firstBox);
+    updateProgress(0);
+  }, 700);
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  location.reload();
+});
+
+buildQuiz();
+</script>
+</body>
+</html>
